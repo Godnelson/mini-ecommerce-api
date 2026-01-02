@@ -165,12 +165,3 @@ Keeping auth out of the base version keeps the focus on:
 **DB modeling, correctness, and system behavior**.
 
 ---
-
-## Next upgrades (if you want it *really* premium)
-
-- Idempotency keys for checkout + webhooks
-- Stripe signature verification always enabled (no insecure mode)
-- Structured logging + request IDs + tracing
-- Rate limiting (per-IP)
-- OpenAPI examples + more response models
-- CI pipeline (GitHub Actions) running tests + lint + type-check
