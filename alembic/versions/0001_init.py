@@ -8,11 +8,13 @@ Create Date: 2025-12-31
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 revision = "0001_init"
 down_revision = None
 branch_labels = None
 depends_on = None
+
 
 def upgrade():
     op.create_table(
@@ -38,16 +40,34 @@ def upgrade():
     op.create_index("ix_products_category_id", "products", ["category_id"])
     op.create_index("ix_products_name", "products", ["name"])
 
-    op.execute("CREATE TYPE cart_status AS ENUM ('active','checked_out','expired')")
-    op.execute("CREATE TYPE order_status AS ENUM ('PENDING_PAYMENT','PAID','FULFILLED','CANCELLED')")
-    op.execute("CREATE TYPE payment_status AS ENUM ('INITIATED','SUCCEEDED','FAILED','REFUNDED')")
+    # ---- ENUM types (Postgres) - create once, safely ----
+    cart_status_enum = postgresql.ENUM(
+        "active", "checked_out", "expired",
+        name="cart_status",
+        create_type=False,
+    )
+    order_status_enum = postgresql.ENUM(
+        "PENDING_PAYMENT", "PAID", "FULFILLED", "CANCELLED",
+        name="order_status",
+        create_type=False,
+    )
+    payment_status_enum = postgresql.ENUM(
+        "INITIATED", "SUCCEEDED", "FAILED", "REFUNDED",
+        name="payment_status",
+        create_type=False,
+    )
+
+    bind = op.get_bind()
+    cart_status_enum.create(bind, checkfirst=True)
+    order_status_enum.create(bind, checkfirst=True)
+    payment_status_enum.create(bind, checkfirst=True)
 
     op.create_table(
         "carts",
         sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column("status", sa.Enum(name="cart_status"), nullable=False, server_default="active"),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+        sa.Column("status", cart_status_enum, nullable=False, server_default="active"),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
     )
     op.create_index("ix_carts_status", "carts", ["status"])
 
@@ -69,9 +89,9 @@ def upgrade():
         sa.Column("cart_id", sa.Integer(), sa.ForeignKey("carts.id"), nullable=False),
         sa.Column("total_cents", sa.Integer(), nullable=False),
         sa.Column("currency", sa.String(length=10), nullable=False, server_default="brl"),
-        sa.Column("status", sa.Enum(name="order_status"), nullable=False, server_default="PENDING_PAYMENT"),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
-        sa.UniqueConstraint("cart_id"),
+        sa.Column("status", order_status_enum, nullable=False, server_default="PENDING_PAYMENT"),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.UniqueConstraint("cart_id", name="uq_orders_cart_id"),
     )
     op.create_index("ix_orders_cart_id", "orders", ["cart_id"])
     op.create_index("ix_orders_status", "orders", ["status"])
@@ -92,13 +112,13 @@ def upgrade():
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("order_id", sa.Integer(), sa.ForeignKey("orders.id"), nullable=False),
         sa.Column("provider", sa.String(length=30), nullable=False, server_default="stripe"),
-        sa.Column("status", sa.Enum(name="payment_status"), nullable=False, server_default="INITIATED"),
+        sa.Column("status", payment_status_enum, nullable=False, server_default="INITIATED"),
         sa.Column("amount_cents", sa.Integer(), nullable=False),
         sa.Column("currency", sa.String(length=10), nullable=False, server_default="brl"),
         sa.Column("stripe_session_id", sa.String(length=255), nullable=True),
         sa.Column("stripe_payment_intent_id", sa.String(length=255), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
-        sa.UniqueConstraint("order_id"),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.UniqueConstraint("order_id", name="uq_payments_order_id"),
     )
     op.create_index("ix_payments_order_id", "payments", ["order_id"])
     op.create_index("ix_payments_status", "payments", ["status"])
@@ -110,11 +130,12 @@ def upgrade():
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("provider", sa.String(length=30), nullable=False, server_default="stripe"),
         sa.Column("event_id", sa.String(length=255), nullable=False),
-        sa.Column("processed_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+        sa.Column("processed_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.UniqueConstraint("provider", "event_id", name="uq_provider_event_id"),
     )
     op.create_index("ix_webhook_events_provider", "webhook_events", ["provider"])
     op.create_index("ix_webhook_events_event_id", "webhook_events", ["event_id"])
+
 
 def downgrade():
     op.drop_table("webhook_events")
@@ -125,6 +146,8 @@ def downgrade():
     op.drop_table("carts")
     op.drop_table("products")
     op.drop_table("categories")
-    op.execute("DROP TYPE IF EXISTS payment_status")
-    op.execute("DROP TYPE IF EXISTS order_status")
-    op.execute("DROP TYPE IF EXISTS cart_status")
+
+    bind = op.get_bind()
+    postgresql.ENUM(name="payment_status").drop(bind, checkfirst=True)
+    postgresql.ENUM(name="order_status").drop(bind, checkfirst=True)
+    postgresql.ENUM(name="cart_status").drop(bind, checkfirst=True)
