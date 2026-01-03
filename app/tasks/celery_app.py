@@ -9,3 +9,4 @@ celery_app.conf.update(
     task_always_eager=False,
     task_ignore_result=True,
 )
+celery_app.autodiscover_tasks(["app.tasks"])
