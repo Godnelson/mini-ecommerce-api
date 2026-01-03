@@ -16,7 +16,7 @@ class Order(Base):
     cart_id: Mapped[int] = mapped_column(ForeignKey("carts.id"), unique=True, index=True)
     total_cents: Mapped[int] = mapped_column(Integer)
     currency: Mapped[str] = mapped_column(String(10), default="brl")
-    status: Mapped[OrderStatus] = mapped_column(Enum(OrderStatus, name="order_status"), default=OrderStatus.pending_payment, index=True)
+    status: Mapped[OrderStatus] = mapped_column(Enum(OrderStatus, name="order_status"), default=OrderStatus.pending_payment.value, index=True)
     created_at: Mapped[object] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     items = relationship("OrderItem", back_populates="order", cascade="all,delete-orphan")
