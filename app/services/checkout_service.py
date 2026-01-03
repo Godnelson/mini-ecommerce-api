@@ -53,7 +53,7 @@ def checkout(db: Session, cart_id: int) -> tuple[Order, dict]:
         total += item.qty * item.unit_price_cents
 
     # Create order + items (still within the same transaction)
-    order = Order(cart_id=cart.id, total_cents=total, currency=currency, status=OrderStatus.pending_payment.value)
+    order = Order(cart_id=cart.id, total_cents=total, currency=currency, status=OrderStatus.pending_payment)
     db.add(order)
     db.flush()
 

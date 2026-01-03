@@ -1,7 +1,7 @@
 from __future__ import annotations
 import enum
 from sqlalchemy import Integer, String, ForeignKey, Enum, DateTime, func, UniqueConstraint
-from sqlalchemy.dialects.postgresql import ENUM as PGEnum
+from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.db import Base
 
@@ -18,13 +18,15 @@ class Order(Base):
     total_cents: Mapped[int] = mapped_column(Integer)
     currency: Mapped[str] = mapped_column(String(10), default="brl")
     status: Mapped[OrderStatus] = mapped_column(
-        PGEnum(
+        SAEnum(
             OrderStatus,
             name="order_status",
+            values_callable=lambda e: [i.value for i in e],
+            native_enum=True,
             create_type=False,
         ),
         nullable=False,
-        server_default=OrderStatus.pending_payment.value,
+        server_default=OrderStatus.pending_payment,
         index=True,
     )
     created_at: Mapped[object] = mapped_column(DateTime(timezone=True), server_default=func.now())
