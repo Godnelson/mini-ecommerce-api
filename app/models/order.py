@@ -1,6 +1,7 @@
 from __future__ import annotations
 import enum
 from sqlalchemy import Integer, String, ForeignKey, Enum, DateTime, func, UniqueConstraint
+from sqlalchemy.dialects.postgresql import ENUM as PGEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.db import Base
 
@@ -16,7 +17,16 @@ class Order(Base):
     cart_id: Mapped[int] = mapped_column(ForeignKey("carts.id"), unique=True, index=True)
     total_cents: Mapped[int] = mapped_column(Integer)
     currency: Mapped[str] = mapped_column(String(10), default="brl")
-    status: Mapped[OrderStatus] = mapped_column(Enum(OrderStatus, name="order_status"), default=OrderStatus.pending_payment.value, index=True)
+    status: Mapped[OrderStatus] = mapped_column(
+        PGEnum(
+            OrderStatus,
+            name="order_status",
+            create_type=False,
+        ),
+        nullable=False,
+        server_default=OrderStatus.pending_payment.value,
+        index=True,
+    )
     created_at: Mapped[object] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     items = relationship("OrderItem", back_populates="order", cascade="all,delete-orphan")
